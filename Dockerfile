@@ -9,7 +9,8 @@ WORKDIR /app
 COPY lightrag_webui/ ./lightrag_webui/
 
 # Build frontend assets for inclusion in the API package
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+# Added cache id for Railway
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
     cd lightrag_webui \
     && bun install --frozen-lockfile \
     && bun run build
@@ -38,12 +39,13 @@ ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
 RUN mkdir -p /root/.local/share/uv
 
 # Copy project metadata and sources
-COPY pyproject.toml .
-COPY setup.py .
-COPY uv.lock .
+COPY pyproject.toml . 
+COPY setup.py . 
+COPY uv.lock . 
 
 # Install base, API, and offline extras without the project to improve caching
-RUN --mount=type=cache,target=/root/.local/share/uv \
+# Added cache id for Railway
+RUN --mount=type=cache,id=uv-cache,target=/root/.local/share/uv \
     uv sync --frozen --no-dev --extra api --extra offline --no-install-project --no-editable
 
 # Copy project sources after dependency layer
@@ -53,12 +55,11 @@ COPY lightrag/ ./lightrag/
 COPY --from=frontend-builder /app/lightrag/api/webui ./lightrag/api/webui
 
 # Sync project in non-editable mode and ensure pip is available for runtime installs
-RUN --mount=type=cache,target=/root/.local/share/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.local/share/uv \
     uv sync --frozen --no-dev --extra api --extra offline --no-editable \
     && /app/.venv/bin/python -m ensurepip --upgrade
 
 # Prepare offline cache directory and pre-populate tiktoken data
-# Use uv run to execute commands from the virtual environment
 RUN mkdir -p /app/data/tiktoken \
     && uv run lightrag-download-cache --cache-dir /app/data/tiktoken || status=$?; \
     if [ -n "${status:-}" ] && [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
@@ -85,8 +86,8 @@ COPY uv.lock .
 ENV PATH=/app/.venv/bin:/root/.local/bin:$PATH
 
 # Install dependencies with uv sync (uses locked versions from uv.lock)
-# And ensure pip is available for runtime installs
-RUN --mount=type=cache,target=/root/.local/share/uv \
+# Added cache id for Railway
+RUN --mount=type=cache,id=uv-cache,target=/root/.local/share/uv \
     uv sync --frozen --no-dev --extra api --extra offline --no-editable \
     && /app/.venv/bin/python -m ensurepip --upgrade
 
