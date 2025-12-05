@@ -1,0 +1,3 @@
+lightrag-hku[api]
+uvicorn
+fastapi
